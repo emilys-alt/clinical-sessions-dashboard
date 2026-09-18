@@ -1,1 +1,56 @@
+name: Daily podcast-article matching
+
+# Runs automatically every morning, and can also be triggered manually from
+# the Actions tab (useful for testing without waiting for the schedule).
+on:
+  schedule:
+    # 19:30 UTC ≈ 6:30am AEDT (UTC+11, Oct–Apr) or 5:30am AEST (UTC+10,
+    # Apr–Oct). Cron on GitHub Actions always runs in UTC and does not
+    # adjust for daylight saving — if you want a fixed local time
+    # year-round, you'd need two schedule entries and disable one manually
+    # each time the clocks change. Not worth the complexity for a "some
+    # time in the early morning" dashboard.
+    - cron: "30 19 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write  # needed to commit the refreshed dashboard back to the repo
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run matching engine
+        run: python matching_engine.py
+        # No ./episodes/ folder exists in this repo (deliberately — see
+        # README), so this automatically uses episode_index.json instead
+        # (titles, URLs and pre-computed embeddings only). No
+        # ANTHROPIC_API_KEY is set either, so headlines come from the free
+        # built-in templates. Both are expected, not errors.
+
+      - name: Prepare GitHub Pages output
+        run: |
+          mkdir -p docs
+          cp dashboard_report.html docs/index.html
+
+      - name: Commit and push updated dashboard
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Automated: refresh dashboard"
+          file_pattern: "docs/index.html"
+          # matches.json isn't committed — it's gitignored, and its content
+          # is already baked into docs/index.html, so there's nothing extra
+          # to gain from publishing it separately.
 
