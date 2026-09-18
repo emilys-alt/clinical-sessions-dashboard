@@ -1,0 +1,76 @@
+{
+  "_note": "Offline snapshot of real, currently-live Australian GP news articles, hand-fetched on 2026-08-05 because this sandbox's network is domain-allowlisted and cannot reach newsGP/AusDoc/Medical Republic/Healthed directly (see README). matching_engine.py falls back to this file only when live RSS fetching returns zero articles. On a machine with normal internet access, delete or ignore this file and the script will pull live articles instead.",
+  "fetched_at": "2026-08-05T00:00:00Z",
+  "articles": [
+    {
+      "source": "newsGP (RACGP)",
+      "title": "TGA issues GLP-1 RA class-wide safety update",
+      "summary": "The TGA has updated product warnings for all GLP-1 RA medicines on sale in Australia (semaglutide, tirzepatide, liraglutide, dulaglutide) due to a rare but severe eye disorder, NAION. GPs are urged to know the risk factors and refer urgently on sudden vision loss.",
+      "url": "https://www1.racgp.org.au/newsgp/clinical/tga-issues-glp-1-ra-class-wide-safety-update",
+      "published": "2026-07-23T06:39:12Z"
+    },
+    {
+      "source": "newsGP (RACGP)",
+      "title": "GPs urged to review asthma prescribing amid Ventolin nebule shortage",
+      "summary": "With salbutamol nebule shortages expected to last through much of 2026, experts say GPs should use the opportunity to transition patients off SABA-only treatment and towards guideline-recommended anti-inflammatory reliever (AIR-only) or MART therapy.",
+      "url": "https://www1.racgp.org.au/newsgp/clinical/gps-urged-to-review-asthma-prescribing-amid-ventol",
+      "published": "2026-07-29T06:43:55Z"
+    },
+    {
+      "source": "newsGP (RACGP)",
+      "title": "Personalised COPD dispensing reports sent out",
+      "summary": "GPs nationally have been sent individual PBS dispensing reports showing a 130% rise in triple-therapy (ICS/LAMA/LABA) prescribing since 2015-16, prompting a review against COPD-X guidelines and the importance of spirometry-confirmed diagnosis.",
+      "url": "https://www1.racgp.org.au/newsgp/clinical/personalised-copd-dispensing-reports-sent-out",
+      "published": "2026-07-27T07:16:57Z"
+    },
+    {
+      "source": "AusDoc",
+      "title": "ADHD in kids: Dexamphetamine associated with more early weight loss than methylphenidate in Aussie study",
+      "summary": "A University of Sydney RCT of 100 children/teens with DSM-5-confirmed ADHD found dexamphetamine caused significantly more weight loss in the first three months than methylphenidate (1.4kg vs 300g), though the two stimulants were equally effective for symptom control.",
+      "url": "https://www.ausdoc.com.au/news/adhd-in-kids-dexamphetamine-associated-with-more-early-weight-loss-than-methylphenidate-in-aussie-study/",
+      "published": "2026-07-31T00:48:14Z"
+    },
+    {
+      "source": "AusDoc",
+      "title": "Salbutamol shortage 'an opportunity' for patients to ditch SABA-only asthma treatment",
+      "summary": "The National Asthma Council says the worsening salbutamol nebule shortage, while stressful for patients, has renewed the push for adults with asthma to stop relying on short-acting beta2 agonist-only treatment, though a 'huge change' in prescribing habits is still needed.",
+      "url": "https://www.ausdoc.com.au/news/salbutamol-shortage-an-opportunity-amid-push-for-patients-to-ditch-saba-only-asthma-treatment/",
+      "published": "2026-07-30T04:08:25Z"
+    },
+    {
+      "source": "Healthed",
+      "title": "When illness impacts ability to work: patients may be entitled to insurance benefits",
+      "summary": "Chronic illness, not just traumatic workplace injury, is one of the most common triggers for Total and Permanent Disability (TPD) insurance claims. GPs' longitudinal medical records documenting symptoms, treatment and functional impact play a key evidentiary role in claims.",
+      "url": "https://www.healthed.com.au/clinical_articles/when-illness-impacts-ability-to-work-patients-may-be-entitled-to-insurance-benefits/",
+      "published": "2026-08-01T05:10:07Z"
+    },
+    {
+      "source": "Healthed",
+      "title": "Navigating perimenopause and menopause – Managing weight, health and wellbeing",
+      "summary": "Dr Georgia Rigas and Dr Nadia Tejani join Dr Angela Kwong to unpack perimenopausal weight gain, cardiometabolic risk, and the evolving roles of menopausal hormone therapy and GLP-1s in midlife care.",
+      "url": "https://www.healthed.com.au/podcasts/navigating-perimenopause-and-menopause-managing-weight-health-and-wellbeing/",
+      "published": "2026-08-04T00:00:00Z"
+    },
+    {
+      "source": "Medical Republic",
+      "title": "High-THC cannabis products outpace evidence",
+      "summary": "Coverage of the rapid rise of high-THC medicinal cannabis products in Australia and concern from clinicians and regulators that product potency is outpacing the evidence base for safe prescribing.",
+      "url": "https://www.medicalrepublic.com.au/high-thc-cannabis-products-outpace-evidence/127838",
+      "published": "2026-07-31T00:00:00Z"
+    },
+    {
+      "source": "Medical Republic",
+      "title": "Hepatitis B and C: Finding the patients we're missing",
+      "summary": "A look at gaps in hepatitis B and C case-finding in Australian general practice and what GPs can do to identify undiagnosed patients.",
+      "url": "https://www.medicalrepublic.com.au/hepatitis-b-and-c-finding-the-patients-were-missing/127817",
+      "published": "2026-07-30T00:00:00Z"
+    },
+    {
+      "source": "newsGP (RACGP)",
+      "title": "'Milestone' Alzheimer's diagnosis blood test gets green light",
+      "summary": "GPs could one day offer patients a blood test able to detect Alzheimer's biomarkers up to two decades before symptoms appear, following its approval.",
+      "url": "https://www1.racgp.org.au/newsgp/clinical/milestone-in-alzheimer-s-diagnosis-as-new-blood-te",
+      "published": "2026-08-01T00:00:00Z"
+    }
+  ]
+}

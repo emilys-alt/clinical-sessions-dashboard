@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Clinical Sessions — Morning Match Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EFF3F1;
+    --paper-raised:#FFFFFF;
+    --ink:#17262B;
+    --muted:#5C6B6C;
+    --rule:#C9D3D1;
+    --teal:#1F6F64;
+    --teal-soft:#E4EFEC;
+    --amber:#B8722E;
+    --amber-soft:#F5E9DA;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    padding:32px 20px 60px;
+  }
+  .wrap{max-width:920px;margin:0 auto;}
+
+  /* Masthead */
+  .masthead{
+    border-top:3px solid var(--ink);
+    border-bottom:1px solid var(--ink);
+    padding:18px 0 14px;
+    margin-bottom:28px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .masthead h1{
+    font-family:'Source Serif 4',serif;
+    font-weight:700;
+    font-size:28px;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .masthead .sub{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+  }
+  .masthead .meta{
+    text-align:right;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    line-height:1.6;
+  }
+
+  /* Controls */
+  .controls{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-bottom:28px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .controls label{
+    border:1px solid var(--rule);
+    background:var(--paper-raised);
+    padding:8px 14px;
+    border-radius:3px;
+    cursor:pointer;
+    transition:border-color .15s ease;
+  }
+  .controls label:hover{border-color:var(--teal);}
+  .controls input[type=file]{display:none;}
+  .controls .status{font-size:11px;}
+
+  /* Match card */
+  .match{
+    display:grid;
+    grid-template-columns:1fr 68px 1fr;
+    gap:0;
+    background:var(--paper-raised);
+    border:1px solid var(--rule);
+    border-radius:4px;
+    margin-bottom:16px;
+    overflow:hidden;
+  }
+  @media (max-width:640px){
+    .match{grid-template-columns:1fr;}
+    .pulse-col{display:none;}
+  }
+
+  .col{padding:20px 22px;}
+  .col.article{border-right:1px solid var(--rule);}
+  @media (max-width:640px){.col.article{border-right:none;border-bottom:1px solid var(--rule);}}
+
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:0.09em;
+    color:var(--muted);
+    margin-bottom:8px;
+    display:flex;
+    justify-content:space-between;
+  }
+
+  .art-title{
+    font-family:'Source Serif 4',serif;
+    font-size:17px;
+    font-weight:600;
+    line-height:1.35;
+    margin:0 0 8px;
+  }
+  .art-title a{color:var(--ink);text-decoration:none;}
+  .art-title a:hover{text-decoration:underline;}
+  .art-summary{
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.5;
+    margin:0;
+  }
+
+  .ep-title{
+    font-family:'Source Serif 4',serif;
+    font-size:16px;
+    font-weight:600;
+    line-height:1.35;
+    margin:0 0 12px;
+    color:var(--teal);
+  }
+  .ep-title a{color:inherit;text-decoration:none;}
+  .ep-title a:hover{text-decoration:underline;}
+
+  .headlines{list-style:none;margin:0;padding:0;}
+  .headlines li{
+    font-size:13px;
+    padding:8px 10px;
+    background:var(--teal-soft);
+    border-radius:3px;
+    margin-bottom:6px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+  }
+  .headlines li span{flex:1;}
+  .copy-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    background:none;
+    border:1px solid var(--teal);
+    color:var(--teal);
+    border-radius:2px;
+    padding:3px 7px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .copy-btn:hover{background:var(--teal);color:#fff;}
+  .copy-btn.copied{background:var(--teal);color:#fff;}
+
+  /* Pulse connector */
+  .pulse-col{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--paper);
+  }
+  .pulse-col svg{display:block;}
+  .score-tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    color:var(--muted);
+  }
+
+  .band{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    padding:2px 6px;
+    border-radius:2px;
+  }
+  .band.strong{background:var(--teal-soft);color:var(--teal);}
+  .band.moderate{background:var(--amber-soft);color:var(--amber);}
+
+  .empty{
+    text-align:center;
+    padding:60px 20px;
+    color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+  }
+
+  footer{
+    margin-top:36px;
+    padding-top:14px;
+    border-top:1px solid var(--rule);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    color:var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div>
+      <h1>Morning Match Report</h1>
+      <div class="sub">Clinical Sessions — contextual ad matches</div>
+    </div>
+    <div class="meta" id="metaBlock">
+      Loading…
+    </div>
+  </div>
+
+  <div class="controls">
+    <label for="fileInput">Load matches.json</label>
+    <input type="file" id="fileInput" accept="application/json">
+    <span class="status" id="fileStatus"></span>
+  </div>
+
+  <div id="matchList"></div>
+
+  <footer>
+    Generated by matching_engine.py · match strength = similarity between article and episode transcript, scaled relative to today's batch
+  </footer>
+</div>
+
+<!--
+  This is a TEMPLATE file. matching_engine.py reads this file each run and
+  writes out a fresh dashboard_report.html with today's matches baked
+  directly into the placeholder script tag below, replaced with real JSON.
+  That's on purpose, for two reasons: (1) a web page opened directly from
+  disk (file://) is normally blocked by the browser from reading other
+  files next to it for security reasons, so fetching matches.json at load
+  time is unreliable; (2) the output filename is deliberately NOT
+  "dashboard.html" — a file with that name may have arrived on your
+  computer as a read-only download, which no script can ever overwrite.
+  Baking the data into a freshly-named file sidesteps both problems: the
+  generated file always shows exactly what was in matches.json the moment
+  it was generated, no fetch required, and it's fully writable by future
+  runs since it was created locally rather than downloaded.
+
+  If you open THIS file (dashboard_template.html) directly instead of the
+  generated dashboard_report.html, you'll just see sample data — that's
+  expected, it's the template, not a report.
+-->
+<script id="injected-data" type="application/json">__MATCHES_JSON__</script>
+
+<script>
+const SAMPLE_DATA = {
+  generated_at: new Date().toISOString(),
+  lookback_hours: 36,
+  threshold: 0.45,
+  match_count: 2,
+  matches: [
+    {
+      article: {
+        source: "Nillumbik Medical Centre",
+        title: "HRT Patch Shortage Australia 2026",
+        summary: "Estradiol patch shortages are expected to continue until later this year; the TGA has extended its substitution instrument into 2027.",
+        url: "https://www.nillmc.com.au/hrt-patch-shortage-australia/",
+        published: new Date(Date.now() - 5*3600*1000).toISOString()
+      },
+      episode: {
+        title: "The Menopause Transition with Dr Virochana Kaul",
+        url: "https://open.spotify.com/episode/292i2SA0CbI8acKlujE1EW"
+      },
+      score: 0.79,
+      headlines: [
+        "Estradiol patch shortage: what to tell your patients",
+        "Navigating the HRT patch shortage in general practice",
+        "MHT alternatives explained as patch supply tightens"
+      ]
+    },
+    {
+      article: {
+        source: "WorkSafe Qld",
+        title: "Silicosis health screening update: 1,054 stonemasons screened",
+        summary: "Screening for stonemasons exposed to crystalline silica dust from engineered stone was completed as of 30 April 2026.",
+        url: "https://www.worksafe.qld.gov.au/claims-and-insurance/work-related-injuries/types-of-injury-or-illness/work-related-respiratory-diseases/silicosis",
+        published: new Date(Date.now() - 20*3600*1000).toISOString()
+      },
+      episode: {
+        title: "Occupational Lung Disease - Silicosis and the Stone Benchtop Industry",
+        url: "https://open.spotify.com/episode/7oxygyJ3fXRsIHrMHunSq0"
+      },
+      score: 0.76,
+      headlines: [
+        "Silicosis screening update: what GPs need to know",
+        "Occupational lung disease explained by a respiratory physician",
+        "Stone benchtop workers and silicosis: the clinical picture"
+      ]
+    }
+  ]
+};
+
+function timeAgo(iso){
+  if(!iso) return "";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const hrs = Math.round(diffMs / 3600000);
+  if(hrs < 1) return "just now";
+  if(hrs === 1) return "1h ago";
+  if(hrs < 24) return hrs + "h ago";
+  return Math.round(hrs/24) + "d ago";
+}
+
+function pulseSvg(strength){
+  // amplitude scales with normalized match strength (0-1), ECG-style connector
+  const amp = 8 + strength*22;
+  const path = `M0,30 L14,30 L20,${30-amp} L26,${30+amp*0.6} L32,30 L60,30`;
+  const color = strength >= 0.5 ? "#1F6F64" : "#B8722E";
+  return `<svg width="60" height="60" viewBox="0 0 60 60">
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function render(data){
+  const meta = document.getElementById('metaBlock');
+  const genDate = new Date(data.generated_at);
+  const backendNote = data.embedding_backend ? ` · ${data.embedding_backend}` : '';
+  const cacheNote = data.used_offline_article_cache ? ' · offline article cache' : '';
+  meta.innerHTML = `Generated ${genDate.toLocaleDateString(undefined,{month:'short',day:'numeric'})} ${genDate.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}<br>${data.match_count} match${data.match_count===1?'':'es'} · threshold ${data.threshold}${backendNote}${cacheNote}`;
+
+  const list = document.getElementById('matchList');
+  list.innerHTML = "";
+
+  if(!data.matches || data.matches.length === 0){
+    list.innerHTML = `<div class="empty">No matches above threshold in this run.<br>Lower SIMILARITY_THRESHOLD or widen RSS_FEEDS in matching_engine.py.</div>`;
+    return;
+  }
+
+  // Band cutoffs are relative to this run's own score range, not a fixed
+  // absolute number — the TF-IDF fallback backend produces much lower raw
+  // cosine similarities than sentence-transformers, so a hardcoded cutoff
+  // would mislabel every TF-IDF match as "moderate" regardless of how
+  // strong it actually is relative to the rest of the batch.
+  const scores = data.matches.map(m => m.score);
+  const maxScore = Math.max(...scores);
+  const floor = typeof data.threshold === 'number' ? data.threshold : Math.min(...scores);
+  const range = maxScore - floor;
+
+  data.matches.forEach((m, i) => {
+    const strength = range > 0 ? (m.score - floor) / range : 1;
+    const band = strength >= 0.5 ? "strong" : "moderate";
+    const bandLabel = strength >= 0.5 ? "Strong match" : "Moderate match";
+    const headlinesHtml = (m.headlines && m.headlines.length)
+      ? m.headlines.map(h => `<li><span>${escapeHtml(h)}</span><button class="copy-btn" data-text="${escapeHtml(h)}">Copy</button></li>`).join("")
+      : `<li><span style="color:var(--muted)">No headlines drafted (set ANTHROPIC_API_KEY)</span></li>`;
+
+    const card = document.createElement('div');
+    card.className = 'match';
+    card.innerHTML = `
+      <div class="col article">
+        <div class="eyebrow"><span>${escapeHtml(m.article.source)}</span><span>${timeAgo(m.article.published)}</span></div>
+        <p class="art-title"><a href="${m.article.url}" target="_blank" rel="noopener">${escapeHtml(m.article.title)}</a></p>
+        <p class="art-summary">${escapeHtml(m.article.summary || "")}</p>
+      </div>
+      <div class="col pulse-col">
+        ${pulseSvg(strength)}
+        <div class="score-tag">${m.score.toFixed(3)}</div>
+      </div>
+      <div class="col episode">
+        <div class="eyebrow"><span class="band ${band}">${bandLabel}</span></div>
+        <p class="ep-title"><a href="${m.episode.url}" target="_blank" rel="noopener">${escapeHtml(m.episode.title)}</a></p>
+        <ul class="headlines">${headlinesHtml}</ul>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+
+  list.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const text = btn.getAttribute('data-text');
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = "Copied";
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove('copied'); }, 1400);
+      });
+    });
+  });
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try{
+      const data = JSON.parse(evt.target.result);
+      render(data);
+      document.getElementById('fileStatus').textContent = `Loaded ${file.name}`;
+    }catch(err){
+      document.getElementById('fileStatus').textContent = `Couldn't parse ${file.name}: ${err.message}`;
+    }
+  };
+  reader.readAsText(file);
+});
+
+// Data baked in directly by matching_engine.py when it generates dashboard.html
+// (see the <script id="injected-data"> tag above). This is the primary path.
+let INJECTED_DATA = null;
+try {
+  const raw = document.getElementById('injected-data').textContent.trim();
+  // No placeholder-string comparison here on purpose — matching_engine.py's
+  // find-and-replace would corrupt any copy of that literal string it finds
+  // in this script too. Relying on JSON.parse failing (caught below) is
+  // what correctly identifies an unfilled template.
+  if (raw) {
+    INJECTED_DATA = JSON.parse(raw);
+  }
+} catch(e) {
+  // Expected when this is the unfilled template — falls through to fetch/sample below.
+}
+
+if (INJECTED_DATA) {
+  render(INJECTED_DATA);
+  document.getElementById('fileStatus').textContent = "Showing today's matches";
+} else {
+  // Fallback for opening this template directly, or older generated files —
+  // try a local fetch (works in some browsers), else show sample data.
+  fetch('matches.json')
+    .then(r => { if(!r.ok) throw new Error('not found'); return r.json(); })
+    .then(data => {
+      render(data);
+      document.getElementById('fileStatus').textContent = "Loaded matches.json automatically";
+    })
+    .catch(() => {
+      render(SAMPLE_DATA);
+      document.getElementById('fileStatus').textContent = "Showing sample data — run \"Run Morning Match.command\" to generate a real report";
+    });
+}
+</script>
+</body>
+</html>

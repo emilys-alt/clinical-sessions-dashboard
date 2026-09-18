@@ -1,0 +1,4 @@
+feedparser
+scikit-learn
+sentence-transformers
+numpy
