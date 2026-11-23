@@ -123,6 +123,25 @@ FEED_SIMILARITY_THRESHOLD = 0.45   # Threshold for episodes embedded from
                                     # articles) is close to the old 25-episode
                                     # index's (~23%). Transcript-based episodes
                                     # keep SIMILARITY_THRESHOLD above.
+# Recency boost — favour newer episodes in close calls (added 2026-11-23).
+# Among the episodes that qualify for an article, the winner is the one with
+# the highest
+#     adjusted = similarity + RECENCY_MAX_BOOST * 0.5 ** (age_days / RECENCY_HALF_LIFE_DAYS)
+# so a just-released episode gets +0.04, a 6-month-old one ~+0.02, a
+# year-old one ~+0.01, an undated one nothing. An older episode that is a
+# clearly better fit (by more than the bonus gap, at most ~0.03) still wins.
+#
+# The threshold uses RAW similarity (RECENCY_THRESHOLD_ALLOWANCE = 0): the
+# bonus decides WHICH episode an article gets, never WHETHER it gets one.
+# Tested on 86 real articles (see PR): an allowance of 0.02 (raw may fall
+# 0.02 short if the bonus lifts it over) let in 5 extra matches and all were
+# weak — e.g. a nuclear-weapons story -> "Delivering a net-zero health
+# system", a GP-politics op-ed -> "Engaging Men in Primary Care". Raise it
+# only if you want the bonus to admit borderline matches too.
+RECENCY_MAX_BOOST = 0.04
+RECENCY_HALF_LIFE_DAYS = 180
+RECENCY_THRESHOLD_ALLOWANCE = 0.0
+
 TOP_MATCHES_PER_ARTICLE = 1        # how many episodes to attach per article
 LOOKBACK_HOURS = 36                # how far back to scan RSS feeds
 HEADLINES_PER_MATCH = 3            # ad headline variants to draft per match
@@ -268,6 +287,7 @@ def load_episodes_from_index():
             "title": ep["title"],
             "url": ep["url"],
             "source": ep.get("source", "transcript"),
+            "published": ep.get("published"),
             "embedding": np.array(ep["embedding"], dtype="float32"),
         })
     return episodes
@@ -281,8 +301,16 @@ def add_feed_episodes_from_index(local_episodes):
     if not os.path.exists(EPISODE_INDEX_FILE):
         return local_episodes
     from build_feed_index import same_title
+    index_eps = load_episodes_from_index()
+    # Local transcripts carry no release date; take it from the index.
+    for loc in local_episodes:
+        loc.setdefault("published", next(
+            (ep["published"] for ep in index_eps
+             if ep["url"] == loc["url"] or same_title(ep["title"], loc["title"])),
+            None,
+        ))
     feed_eps = [
-        ep for ep in load_episodes_from_index()
+        ep for ep in index_eps
         if ep["source"] == "feed" and not any(
             loc["url"] == ep["url"] or same_title(loc["title"], ep["title"])
             for loc in local_episodes
@@ -478,19 +506,9 @@ def match_articles_to_episodes_st(articles, episodes, embedder):
         art_embedding = embedder.encode(text)
 
         sims = cosine_similarity([art_embedding], ep_embeddings)[0]
-        ranked = sorted(
-            zip(episodes, sims), key=lambda pair: pair[1], reverse=True
-        )[:TOP_MATCHES_PER_ARTICLE]
+        matches.extend(rank_episodes(art, episodes, sims, use_recency=True))
 
-        for ep, score in ranked:
-            matches.append({
-                "article": art,
-                "episode": {"title": ep["title"], "url": ep["url"],
-                            "source": ep.get("source", "transcript")},
-                "score": round(float(score), 3),
-            })
-
-    matches.sort(key=lambda m: m["score"], reverse=True)
+    matches.sort(key=lambda m: m["adjusted_score"], reverse=True)
     return matches
 
 
@@ -498,6 +516,70 @@ def threshold_for(match):
     if match["episode"].get("source") == "feed":
         return FEED_SIMILARITY_THRESHOLD
     return SIMILARITY_THRESHOLD
+
+
+def recency_boost(published, today=None):
+    """Bonus for newer episodes: RECENCY_MAX_BOOST on release day, halving
+    every RECENCY_HALF_LIFE_DAYS. Undated episodes get nothing (treated as
+    old)."""
+    if not published:
+        return 0.0
+    today = today or datetime.now(timezone.utc).date()
+    try:
+        released = datetime.fromisoformat(str(published)[:10]).date()
+    except ValueError:
+        return 0.0
+    age_days = max(0, (today - released).days)
+    return RECENCY_MAX_BOOST * 0.5 ** (age_days / RECENCY_HALF_LIFE_DAYS)
+
+
+def passes_threshold(match):
+    """Adjusted score must clear the threshold, and the raw similarity may
+    fall short of it by at most RECENCY_THRESHOLD_ALLOWANCE — so the recency
+    bonus can tip a borderline match over the line but never carries a weak
+    one in on its own."""
+    t = threshold_for(match)
+    return (match["adjusted_score"] >= t
+            and match["score"] >= t - RECENCY_THRESHOLD_ALLOWANCE)
+
+
+def rank_episodes(art, episodes, sims, use_recency=True, today=None):
+    """Picks the TOP_MATCHES_PER_ARTICLE episodes for one article.
+
+    1. Whether the article gets a match at all is decided by raw similarity,
+       as before: its best raw match must be within
+       RECENCY_THRESHOLD_ALLOWANCE of that episode's threshold.
+    2. If so, the winner is the qualifying episode (raw similarity within
+       the allowance of its own threshold) with the highest ADJUSTED score
+       (similarity + recency bonus). Episodes that don't qualify never get a
+       bonus, so a recent-but-weak episode can't win, and with no bonus
+       this is exactly plain similarity ranking.
+    """
+    def floor_for(ep):
+        t = FEED_SIMILARITY_THRESHOLD if ep.get("source") == "feed" else SIMILARITY_THRESHOLD
+        return t - RECENCY_THRESHOLD_ALLOWANCE
+
+    candidates = []
+    for ep, sim in zip(episodes, sims):
+        qualifies = sim >= floor_for(ep)
+        boost = recency_boost(ep.get("published"), today) if use_recency and qualifies else 0.0
+        candidates.append((qualifies, {
+            "article": art,
+            "episode": {"title": ep["title"], "url": ep["url"],
+                        "source": ep.get("source", "transcript"),
+                        "published": ep.get("published")},
+            "score": round(float(sim), 3),
+            "recency_boost": round(boost, 3),
+            "adjusted_score": round(float(sim) + boost, 3),
+        }))
+
+    best_raw = max(candidates, key=lambda c: c[1]["score"])
+    if best_raw[0]:
+        pool = sorted((m for q, m in candidates if q),
+                      key=lambda m: m["adjusted_score"], reverse=True)
+    else:
+        pool = sorted((m for _, m in candidates), key=lambda m: m["score"], reverse=True)
+    return pool[:TOP_MATCHES_PER_ARTICLE]
 
 
 def match_articles_to_episodes_tfidf(articles, episodes):
@@ -528,18 +610,11 @@ def match_articles_to_episodes_tfidf(articles, episodes):
         if not text.strip():
             continue
         sims = cosine_similarity(art_matrix[i], ep_matrix)[0]
-        ranked = sorted(
-            zip(episodes, sims), key=lambda pair: pair[1], reverse=True
-        )[:TOP_MATCHES_PER_ARTICLE]
+        # No recency bonus here: TF-IDF scores sit on a much lower scale
+        # (threshold ~0.05), so a 0.04 bonus would swamp them.
+        matches.extend(rank_episodes(art, episodes, sims, use_recency=False))
 
-        for ep, score in ranked:
-            matches.append({
-                "article": art,
-                "episode": {"title": ep["title"], "url": ep["url"]},
-                "score": round(float(score), 3),
-            })
-
-    matches.sort(key=lambda m: m["score"], reverse=True)
+    matches.sort(key=lambda m: m["adjusted_score"], reverse=True)
     return matches
 
 
@@ -726,12 +801,15 @@ def main():
     print(f"  ([f] = episode embedded from feed show notes, threshold "
           f"{FEED_SIMILARITY_THRESHOLD}; others from transcripts, threshold "
           f"{SIMILARITY_THRESHOLD})")
+    print(f"  (similarity + recency bonus = adjusted; released date in brackets)")
     for m in matches_all:
         tag = "[f]" if m["episode"].get("source") == "feed" else "   "
-        keep = "*" if m["score"] >= threshold_for(m) else " "
-        print(f"    {m['score']:.3f}{keep} {m['article']['title'][:60]!r:63s} -> {tag} {m['episode']['title'][:50]}")
+        keep = "*" if passes_threshold(m) else " "
+        print(f"    {m['score']:.3f}+{m['recency_boost']:.3f}={m['adjusted_score']:.3f}{keep} "
+              f"{m['article']['title'][:55]!r:58s} -> {tag} {m['episode']['title'][:45]} "
+              f"[{m['episode'].get('published') or 'undated'}]")
 
-    matches = [m for m in matches_all if m["score"] >= threshold_for(m)]
+    matches = [m for m in matches_all if passes_threshold(m)]
     print(f"\n  {len(matches)} matches above threshold (* above; "
           f"{SIMILARITY_THRESHOLD} transcript / {FEED_SIMILARITY_THRESHOLD} show notes) "
           f"of {len(matches_all)} article-episode pairs scored")
@@ -744,6 +822,11 @@ def main():
         "lookback_hours": LOOKBACK_HOURS,
         "threshold": SIMILARITY_THRESHOLD,
         "feed_threshold": FEED_SIMILARITY_THRESHOLD,
+        "recency": {
+            "max_boost": RECENCY_MAX_BOOST,
+            "half_life_days": RECENCY_HALF_LIFE_DAYS,
+            "threshold_allowance": RECENCY_THRESHOLD_ALLOWANCE,
+        },
         "embedding_backend": backend,
         "used_offline_article_cache": used_offline_cache,
         "match_count": len(matches),

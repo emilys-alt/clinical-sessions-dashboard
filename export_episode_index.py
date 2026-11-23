@@ -66,6 +66,8 @@ def main():
     print(f"Loading embedding model ({me.EMBED_MODEL_NAME})...")
     embedder = SentenceTransformer(me.EMBED_MODEL_NAME)
 
+    existing = bfi.load_index()
+
     print("Computing embeddings (transcript text is used here only, never written out)...")
     index_episodes = []
     for ep in episodes:
@@ -74,6 +76,13 @@ def main():
         index_episodes.append({
             "title": ep["title"],
             "url": ep["url"],
+            # Release date from the existing index (filled in from the feeds
+            # by build_feed_index.py); None until the next feed refresh.
+            "published": next(
+                (e.get("published") for e in existing
+                 if e["url"] == ep["url"] or bfi.same_title(e["title"], ep["title"])),
+                None,
+            ),
             "source": "transcript",
             "embedding": [round(float(x), 6) for x in embedding],
         })
@@ -81,7 +90,7 @@ def main():
     # Keep the feed-based entries added by build_feed_index.py, minus any
     # episode that now has a (better) transcript-based embedding.
     feed_episodes = [
-        e for e in bfi.load_index()
+        e for e in existing
         if e["source"] == "feed" and not any(
             t["url"] == e["url"] or bfi.same_title(t["title"], e["title"])
             for t in index_episodes
