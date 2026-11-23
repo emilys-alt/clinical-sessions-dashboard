@@ -32,6 +32,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Refresh episode index from the podcast feeds
+        run: python build_feed_index.py
+        continue-on-error: true  # worst case: match against the committed index
+        # Pulls every episode from the five public Captivate feeds and embeds
+        # any new/edited ones from title + show notes. Transcript-based
+        # entries (from export_episode_index.py, run locally) are left as is.
+        # If a feed is down, its previous entries are kept.
+
       - name: Run matching engine
         run: python matching_engine.py
         # No ./episodes/ folder exists in this repo (deliberately — see
@@ -49,7 +57,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Automated: refresh dashboard"
-          file_pattern: "docs/index.html"
+          file_pattern: "docs/index.html episode_index.json"
           # matches.json isn't committed — it's gitignored, and its content
           # is already baked into docs/index.html, so there's nothing extra
           # to gain from publishing it separately.

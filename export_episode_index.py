@@ -26,6 +26,12 @@ transcripts themselves.
 USAGE
     python export_episode_index.py
 
+The index also holds every other episode from the public podcast feeds,
+embedded from title + show notes by build_feed_index.py (the daily GitHub
+Action refreshes those). This script only replaces the transcript-based
+entries and keeps the feed-based ones, dropping any feed entry that now has
+a transcript.
+
 Then commit and push the updated episode_index.json to your GitHub repo
 (but never commit the episodes/ folder itself — see .gitignore).
 
@@ -45,6 +51,7 @@ except ImportError:
     sys.exit(1)
 
 import matching_engine as me
+import build_feed_index as bfi
 
 
 def main():
@@ -67,20 +74,34 @@ def main():
         index_episodes.append({
             "title": ep["title"],
             "url": ep["url"],
+            "source": "transcript",
             "embedding": [round(float(x), 6) for x in embedding],
         })
 
+    # Keep the feed-based entries added by build_feed_index.py, minus any
+    # episode that now has a (better) transcript-based embedding.
+    feed_episodes = [
+        e for e in bfi.load_index()
+        if e["source"] == "feed" and not any(
+            t["url"] == e["url"] or bfi.same_title(t["title"], e["title"])
+            for t in index_episodes
+        )
+    ]
+    episodes = index_episodes + feed_episodes
+
     out = {
         "model": me.EMBED_MODEL_NAME,
-        "episode_count": len(index_episodes),
-        "episodes": index_episodes,
+        "episode_count": len(episodes),
+        "transcript_episode_count": len(index_episodes),
+        "feed_episode_count": len(feed_episodes),
+        "episodes": episodes,
     }
 
-    with open(me.EPISODE_INDEX_FILE, "w", encoding="utf-8") as f:
-        json.dump(out, f, indent=2)
+    bfi.write_index(out)
 
-    print(f"\nWrote {me.EPISODE_INDEX_FILE} — {len(index_episodes)} episodes, "
-          f"titles + URLs + embedding vectors only, no transcript text.")
+    print(f"\nWrote {me.EPISODE_INDEX_FILE} — {len(index_episodes)} transcript-based "
+          f"episodes (titles + URLs + embedding vectors only, no transcript text), "
+          f"plus {len(feed_episodes)} feed-based episodes kept from build_feed_index.py.")
     print("Safe to commit and push this file to your public GitHub repo.")
     print("Do NOT commit the episodes/ folder itself — check .gitignore excludes it.")
 
