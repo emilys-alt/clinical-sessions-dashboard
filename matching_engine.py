@@ -107,6 +107,22 @@ SIMILARITY_THRESHOLD = 0.4         # Lowered from 0.45 on 2026-08-06 after the
                                     # this to ~0.05 instead — the two
                                     # backends' score distributions are not
                                     # comparable.
+FEED_SIMILARITY_THRESHOLD = 0.45   # Threshold for episodes embedded from
+                                    # their RSS title + show notes (see
+                                    # build_feed_index.py) rather than a full
+                                    # transcript. Set 2026-11-23 after scoring
+                                    # 86 real articles against the full
+                                    # 141-episode index: at 0.40 over half of
+                                    # all articles "matched", mostly via
+                                    # generic episodes (net-zero health system,
+                                    # panel discussions) pairing with health-
+                                    # policy news; at 0.45 the show-notes
+                                    # matches left were mostly on-topic (oral
+                                    # GLP-1s, ADHD, sleep, dementia blood test)
+                                    # and the overall match rate (~30% of
+                                    # articles) is close to the old 25-episode
+                                    # index's (~23%). Transcript-based episodes
+                                    # keep SIMILARITY_THRESHOLD above.
 TOP_MATCHES_PER_ARTICLE = 1        # how many episodes to attach per article
 LOOKBACK_HOURS = 36                # how far back to scan RSS feeds
 HEADLINES_PER_MATCH = 3            # ad headline variants to draft per match
@@ -229,6 +245,7 @@ def load_episodes():
             "title": title,
             "url": url,
             "transcript": transcript,
+            "source": "transcript",
             "hash": file_hash(path),
         })
     return episodes
@@ -250,9 +267,30 @@ def load_episodes_from_index():
             "path": EPISODE_INDEX_FILE,
             "title": ep["title"],
             "url": ep["url"],
+            "source": ep.get("source", "transcript"),
             "embedding": np.array(ep["embedding"], dtype="float32"),
         })
     return episodes
+
+
+def add_feed_episodes_from_index(local_episodes):
+    """Local runs: ./episodes/ only holds the episodes you have transcripts
+    for. Add the rest of the catalogue from EPISODE_INDEX_FILE's feed-based
+    entries (title + show-notes embeddings, see build_feed_index.py),
+    skipping any that a local transcript already covers."""
+    if not os.path.exists(EPISODE_INDEX_FILE):
+        return local_episodes
+    from build_feed_index import same_title
+    feed_eps = [
+        ep for ep in load_episodes_from_index()
+        if ep["source"] == "feed" and not any(
+            loc["url"] == ep["url"] or same_title(loc["title"], ep["title"])
+            for loc in local_episodes
+        )
+    ]
+    print(f"  + {len(feed_eps)} more episodes from {EPISODE_INDEX_FILE} "
+          f"(embedded from podcast feed show notes)")
+    return local_episodes + feed_eps
 
 
 def load_episodes_for_matching(backend):
@@ -266,6 +304,8 @@ def load_episodes_for_matching(backend):
     has_local_transcripts = bool(glob.glob(os.path.join(EPISODES_DIR, "*.txt")))
     if has_local_transcripts:
         return load_episodes(), "local"
+        # (feed-based episodes from the index are added in main() once the
+        # transcript embeddings are built — sentence-transformers only)
 
     if os.path.exists(EPISODE_INDEX_FILE):
         if backend != "sentence-transformers":
@@ -295,6 +335,8 @@ def build_or_load_episode_embeddings(episodes, embedder):
 
     changed = False
     for ep in episodes:
+        if "embedding" in ep:  # already embedded (index entry)
+            continue
         cached = cache.get(ep["path"])
         if cached and cached["hash"] == ep["hash"]:
             ep["embedding"] = cached["embedding"]
@@ -443,12 +485,19 @@ def match_articles_to_episodes_st(articles, episodes, embedder):
         for ep, score in ranked:
             matches.append({
                 "article": art,
-                "episode": {"title": ep["title"], "url": ep["url"]},
+                "episode": {"title": ep["title"], "url": ep["url"],
+                            "source": ep.get("source", "transcript")},
                 "score": round(float(score), 3),
             })
 
     matches.sort(key=lambda m: m["score"], reverse=True)
     return matches
+
+
+def threshold_for(match):
+    if match["episode"].get("source") == "feed":
+        return FEED_SIMILARITY_THRESHOLD
+    return SIMILARITY_THRESHOLD
 
 
 def match_articles_to_episodes_tfidf(articles, episodes):
@@ -665,6 +714,7 @@ def main():
         if episode_source == "local":
             print("Building/loading episode embeddings...")
             episodes = build_or_load_episode_embeddings(episodes, embedder)
+            episodes = add_feed_episodes_from_index(episodes)
         # else: episode_source == "index" — embeddings already computed,
         # loaded straight from EPISODE_INDEX_FILE, nothing to build.
         matches_all = match_articles_to_episodes_st(articles, episodes, embedder)
@@ -673,12 +723,18 @@ def main():
 
     print(f"\n  Backend: {backend}")
     print(f"  Score table (top match per article, before thresholding):")
+    print(f"  ([f] = episode embedded from feed show notes, threshold "
+          f"{FEED_SIMILARITY_THRESHOLD}; others from transcripts, threshold "
+          f"{SIMILARITY_THRESHOLD})")
     for m in matches_all:
-        print(f"    {m['score']:.3f}  {m['article']['title'][:60]!r:63s} -> {m['episode']['title'][:50]}")
+        tag = "[f]" if m["episode"].get("source") == "feed" else "   "
+        keep = "*" if m["score"] >= threshold_for(m) else " "
+        print(f"    {m['score']:.3f}{keep} {m['article']['title'][:60]!r:63s} -> {tag} {m['episode']['title'][:50]}")
 
-    matches = [m for m in matches_all if m["score"] >= SIMILARITY_THRESHOLD]
-    print(f"\n  {len(matches)} matches above threshold {SIMILARITY_THRESHOLD} "
-          f"(of {len(matches_all)} article-episode pairs scored)")
+    matches = [m for m in matches_all if m["score"] >= threshold_for(m)]
+    print(f"\n  {len(matches)} matches above threshold (* above; "
+          f"{SIMILARITY_THRESHOLD} transcript / {FEED_SIMILARITY_THRESHOLD} show notes) "
+          f"of {len(matches_all)} article-episode pairs scored")
 
     print("Drafting ad headlines for top matches...")
     matches = draft_headlines(matches)
@@ -687,6 +743,7 @@ def main():
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "lookback_hours": LOOKBACK_HOURS,
         "threshold": SIMILARITY_THRESHOLD,
+        "feed_threshold": FEED_SIMILARITY_THRESHOLD,
         "embedding_backend": backend,
         "used_offline_article_cache": used_offline_cache,
         "match_count": len(matches),
