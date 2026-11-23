@@ -32,6 +32,7 @@ USAGE
 
 import difflib
 import hashlib
+from datetime import datetime
 import html
 import json
 import re
@@ -141,6 +142,11 @@ def same_title(a, b):
             and difflib.SequenceMatcher(None, na, nb).ratio() >= TITLE_DUPLICATE_RATIO)
 
 
+def earliest(a, b):
+    """Earlier of two ISO dates, ignoring None."""
+    return min((d for d in (a, b) if d), default=None)
+
+
 def text_hash(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
@@ -172,7 +178,8 @@ def episode_url(entry):
 
 def collect_feed_episodes():
     """Returns (episodes, failed_feed_urls). Each episode is a dict with
-    title, url, feed, text (what gets embedded) and is_full."""
+    title, url, published (ISO date or None), feed, text (what gets
+    embedded) and is_full."""
     parsed = []
     failed = []
     for url in CAPTIVATE_FEEDS:
@@ -210,9 +217,11 @@ def collect_feed_episodes():
             if desc.lower().startswith(title.lower()):
                 words = desc[len(title):].split()
             text = title + ". " + " ".join(words[:DESCRIPTION_WORDS])
+            pub = e.get("published_parsed")
             episodes.append({
                 "title": title,
                 "url": episode_url(e),
+                "published": datetime(*pub[:3]).date().isoformat() if pub else None,
                 "feed": url,
                 "text": text,
                 "is_full": e.get("itunes_episodetype", "full") != "bonus",
@@ -266,16 +275,36 @@ def main():
     kept = []
     skipped_transcript = []
     skipped_dupe = 0
+    transcript_dates = {}  # transcript entry url -> earliest feed pubDate
     for ep in feed_eps:
         twin = next((t for t in transcript_eps
                      if t["url"] == ep["url"] or same_title(t["title"], ep["title"])), None)
         if twin:
             skipped_transcript.append((ep["title"], twin["title"]))
+            transcript_dates[twin["url"]] = earliest(transcript_dates.get(twin["url"]), ep["published"])
             continue
-        if any(k["url"] == ep["url"] or same_title(k["title"], ep["title"]) for k in kept):
+        dupe = next((k for k in kept
+                     if k["url"] == ep["url"] or same_title(k["title"], ep["title"])), None)
+        if dupe:
+            # Same episode in another feed: its release date is the earliest.
+            dupe["published"] = earliest(dupe["published"], ep["published"])
             skipped_dupe += 1
             continue
         kept.append(ep)
+
+    # Transcript entries get their release date from the matching feed item.
+    # If no feed item matched this run (e.g. that feed was down), keep the
+    # date from last run; None means unknown and is treated as old.
+    transcript_eps = [
+        {
+            "title": t["title"],
+            "url": t["url"],
+            "published": transcript_dates.get(t["url"]) or t.get("published"),
+            "source": "transcript",
+            "embedding": t["embedding"],
+        }
+        for t in transcript_eps
+    ]
 
     # Keep last run's entries for any feed we couldn't fetch this time.
     for old in old_feed_eps:
@@ -310,6 +339,7 @@ def main():
         new_feed_entries.append({
             "title": ep["title"],
             "url": ep["url"],
+            "published": ep.get("published"),
             "source": "feed",
             "feed": ep["feed"],
             "text_hash": ep["text_hash"],
